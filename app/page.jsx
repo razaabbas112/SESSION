@@ -1,119 +1,338 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 export default function Home() {
   const [number, setNumber] = useState('')
+  const [pairId, setPairId] = useState('')
   const [code, setCode] = useState('')
+  const [session, setSession] = useState('')
+  const [status, setStatus] = useState('')
   const [loading, setLoading] = useState(false)
-  const [copied, setCopied] = useState(false)
+  const [copied, setCopied] = useState('')
+  const [showSession, setShowSession] = useState(false)
 
-  async function generateSession() {
-    if (!number.trim()) return
+  useEffect(() => {
+    if (!pairId) return
+
+    let active = true
+
+    const check = async () => {
+      try {
+        const response = await fetch(
+          `/api/status?id=${encodeURIComponent(pairId)}`,
+          { cache: 'no-store' }
+        )
+
+        const data = await response.json()
+
+        if (!active) return
+
+        if (data.code) {
+          setCode(data.code)
+        }
+
+        if (data.status) {
+          setStatus(data.status)
+        }
+
+        if (data.session) {
+          setSession(data.session)
+          setStatus('connected')
+          setLoading(false)
+        }
+
+        if (data.error) {
+          setStatus('error')
+          setLoading(false)
+        }
+      } catch {
+        // keep polling
+      }
+    }
+
+    check()
+
+    const timer =
+      setInterval(check, 2500)
+
+    return () => {
+      active = false
+      clearInterval(timer)
+    }
+  }, [pairId])
+
+  async function generate() {
+    const clean =
+      number.replace(/\D/g, '')
+
+    if (!clean) {
+      alert('Enter your WhatsApp number')
+      return
+    }
 
     setLoading(true)
     setCode('')
-    setCopied(false)
+    setSession('')
+    setPairId('')
+    setStatus('starting')
+    setCopied('')
+    setShowSession(false)
 
     try {
-      const response = await fetch('/api/pair', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          number: number.trim()
+      const response =
+        await fetch('/api/pair', {
+          method: 'POST',
+          headers: {
+            'Content-Type':
+              'application/json'
+          },
+          body: JSON.stringify({
+            number: clean
+          })
         })
-      })
 
-      const data = await response.json()
+      const data =
+        await response.json()
 
-      if (data.success) {
-        setCode(data.code || '')
-      } else {
-        alert(data.error || 'Failed to generate session')
+      if (!response.ok || !data.success) {
+        throw new Error(
+          data.error ||
+          'Unable to start pairing'
+        )
       }
-    } catch {
-      alert('Something went wrong')
-    }
 
-    setLoading(false)
+      setPairId(data.id)
+      setCode(data.code || '')
+      setStatus(data.status || 'waiting')
+    } catch (error) {
+      setLoading(false)
+      setStatus('error')
+      alert(
+        error.message ||
+        'Something went wrong'
+      )
+    }
   }
 
-  async function copyCode() {
-    if (!code) return
+  async function copy(value, type) {
+    if (!value) return
 
-    await navigator.clipboard.writeText(code)
+    await navigator.clipboard.writeText(value)
 
-    setCopied(true)
+    setCopied(type)
 
     setTimeout(() => {
-      setCopied(false)
+      setCopied('')
     }, 2000)
   }
 
   return (
-    <main className="container">
-      <div className="card">
+    <main className="page">
 
-        <div className="logo">
-          ʀᴀᴢᴀ
+      <div className="glow glowOne" />
+      <div className="glow glowTwo" />
+
+      <section className="card">
+
+        <div className="brand">
+          <div className="brandIcon">
+            R
+          </div>
+
+          <div>
+            <div className="brandName">
+              ʀᴀᴢᴀ
+            </div>
+
+            <div className="brandSub">
+              SESSION SYSTEM
+            </div>
+          </div>
         </div>
 
-        <h1>Raza Session Generator</h1>
+        <div className="heading">
+          <h1>
+            WhatsApp Session
+          </h1>
 
-        <p className="subtitle">
-          Generate your WhatsApp multi-device session
-        </p>
+          <p>
+            Connect your WhatsApp device
+            using a secure pairing code.
+          </p>
+        </div>
+
+        <div className="statusBox">
+
+          <span
+            className={
+              status === 'connected'
+                ? 'dot connected'
+                : status === 'error'
+                  ? 'dot error'
+                  : 'dot'
+            }
+          />
+
+          <span>
+            {status === 'connected'
+              ? 'WhatsApp connected'
+              : status === 'starting'
+                ? 'Starting pairing...'
+                : status === 'waiting'
+                  ? 'Waiting for pairing'
+                  : status === 'connecting'
+                    ? 'Connecting to WhatsApp...'
+                    : status === 'error'
+                      ? 'Pairing failed'
+                      : 'Ready to pair'}
+          </span>
+
+        </div>
 
         <label>
-          WhatsApp Number
+          WhatsApp number
         </label>
 
-        <input
-          type="tel"
-          placeholder="923xxxxxxxxx"
-          value={number}
-          onChange={(e) =>
-            setNumber(e.target.value)
-          }
-        />
+        <div className="inputBox">
+          <span>+</span>
+
+          <input
+            type="tel"
+            inputMode="numeric"
+            placeholder="923197135780"
+            value={number}
+            onChange={e =>
+              setNumber(
+                e.target.value
+              )
+            }
+          />
+        </div>
 
         <button
-          onClick={generateSession}
+          className="generate"
+          onClick={generate}
           disabled={loading}
         >
           {loading
             ? 'Generating...'
-            : 'Generate Session'}
+            : 'Generate Pair Code'}
         </button>
 
         {code && (
           <div className="result">
 
-            <p>ʀᴀᴢᴀ sᴇssɪᴏɴ</p>
+            <div className="resultTitle">
+              Pᴀɪʀ Cᴏᴅᴇ
+            </div>
 
             <div className="code">
               {code}
             </div>
 
             <button
-              className="copy"
-              onClick={copyCode}
+              className="secondary"
+              onClick={() =>
+                copy(
+                  code,
+                  'code'
+                )
+              }
             >
-              {copied
+              {copied === 'code'
                 ? 'Copied ✓'
-                : 'Copy Session'}
+                : 'Copy Pair Code'}
             </button>
+
+            <p className="hint">
+              Enter this code in
+              WhatsApp → Linked devices
+              → Link a device → Link with
+              phone number.
+            </p>
 
           </div>
         )}
 
-        <div className="footer">
-          ᴘᴏᴡᴇʀᴇᴅ ʙʏ ʟᴇɢᴇɴᴅ ʀᴀᴢᴀ
+        {session && (
+          <div className="result sessionResult">
+
+            <div className="success">
+              ✓ WhatsApp Connected
+            </div>
+
+            <div className="resultTitle">
+              Rᴀᴢᴀ Sᴇssɪᴏɴ
+            </div>
+
+            <div className="sessionBox">
+              {showSession
+                ? session
+                : 'RAZA~••••••••••••••••••••••••'}
+            </div>
+
+            <button
+              className="secondary"
+              onClick={() =>
+                setShowSession(
+                  value => !value
+                )
+              }
+            >
+              {showSession
+                ? 'Hide Session'
+                : 'Show Session'}
+            </button>
+
+            {showSession && (
+              <button
+                className="secondary"
+                onClick={() =>
+                  copy(
+                    session,
+                    'session'
+                  )
+                }
+              >
+                {copied === 'session'
+                  ? 'Copied ✓'
+                  : 'Copy Session'}
+              </button>
+            )}
+
+            <div className="sent">
+              ✓ Session sent to your
+              paired WhatsApp number
+            </div>
+
+          </div>
+        )}
+
+        <div className="features">
+
+          <div>
+            <b>01</b>
+            Secure pairing
+          </div>
+
+          <div>
+            <b>02</b>
+            Multi-device
+          </div>
+
+          <div>
+            <b>03</b>
+            Raza session
+          </div>
+
         </div>
 
-      </div>
+        <footer>
+          ᴘᴏᴡᴇʀᴇᴅ ʙʏ ʟᴇɢᴇɴᴅ ʀᴀᴢᴀ
+        </footer>
+
+      </section>
     </main>
   )
 }
